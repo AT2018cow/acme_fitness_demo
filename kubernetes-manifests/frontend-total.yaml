@@ -13,7 +13,7 @@ spec:
   selector:
     app: acmefit
     service: frontend
-  type: NodePort
+  type: LoadBalancer
 ---
 apiVersion: apps/v1 # for versions before 1.8.0 use apps/v1beta1
 kind: Deployment
@@ -37,7 +37,7 @@ spec:
         service: frontend
     spec:
       containers:
-      - image: gcr.io/vmwarecloudadvocacy/acmeshop-front-end:1.0.0
+      - image: bjvbc/acmeshop-front-end:1.0.0
         name: frontend
         env:
         - name: FRONTEND_PORT
