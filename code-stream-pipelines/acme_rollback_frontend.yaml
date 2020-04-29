@@ -1,0 +1,52 @@
+---
+project: VBC-WCP
+kind: PIPELINE
+name: acme_rollback_frontend
+icon: organization,left, is-info is-solid
+enabled: true
+concurrency: 1
+workspace:
+  endpoint: ''
+  image: ''
+  registry: ''
+  path: ''
+  limits:
+    cpu: 1.0
+    memory: 512
+stageOrder:
+- rollback
+stages:
+  rollback:
+    taskOrder:
+    - frontend
+    tasks:
+      frontend:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: APPLY
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: frontend\r\n  namespace: acme\r\
+            \n  labels:\r\n    app: acmefit\r\n    service: frontend\r\nspec:\r\n  ports:\r\n    - name:\
+            \ http-frontend\r\n      protocol: TCP\r\n      port: 3000\r\n  selector:\r\n    app: acmefit\r\
+            \n    service: frontend\r\n  type: LoadBalancer\r\n---\r\napiVersion: apps/v1 # for versions\
+            \ before 1.8.0 use apps/v1beta1\r\nkind: Deployment\r\nmetadata:\r\n  name: frontend\r\n \
+            \ namespace: acme\r\n  labels:\r\n    app: acmefit\r\n    service: frontend\r\nspec:\r\n \
+            \ selector:\r\n    matchLabels:\r\n      app: acmefit\r\n      service: frontend\r\n  strategy:\r\
+            \n    type: Recreate\r\n  replicas: 1\r\n  template:\r\n    metadata:\r\n      labels:\r\n\
+            \        app: acmefit\r\n        service: frontend\r\n    spec:\r\n      containers:\r\n \
+            \     - image: bjvbc/acmeshop-front-end:1.0.0\r\n        name: frontend\r\n        env:\r\n\
+            \        - name: FRONTEND_PORT\r\n          value: '3000'\r\n        - name: USERS_HOST\r\n\
+            \          value: 'users'\r\n        - name: CATALOG_HOST\r\n          value: 'catalog'\r\n\
+            \        - name: ORDER_HOST\r\n          value: 'order'\r\n        - name: CART_HOST\r\n \
+            \         value: 'cart'\r\n        - name: TRACER_HOST\r\n          value: 'jaeger.observability'\r\
+            \n        - name: USERS_PORT\r\n          value: '8081'\r\n        - name: CATALOG_PORT\r\n\
+            \          value: '8082'\r\n        - name: CART_PORT\r\n          value: '5000'\r\n     \
+            \   - name: ORDER_PORT\r\n          value: '6000'\r\n        - name: TRACER_PORT\r\n     \
+            \     value: '14268'\r\n        ports:\r\n        - containerPort: 3000\r\n          name:\
+            \ frontend"

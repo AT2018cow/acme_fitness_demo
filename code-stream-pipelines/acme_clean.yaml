@@ -1,0 +1,325 @@
+---
+project: VBC-WCP
+kind: PIPELINE
+name: acme_clean
+icon: organization,left, is-info is-solid
+enabled: true
+concurrency: 1
+workspace:
+  endpoint: ''
+  image: ''
+  registry: ''
+  path: ''
+  limits:
+    cpu: 1.0
+    memory: 512
+stageOrder:
+- clean
+stages:
+  clean:
+    taskOrder:
+    - cart-redis,cart
+    - catalog-db,catalog
+    - payment
+    - order-db,order
+    - user-db,user
+    - frontend
+    tasks:
+      catalog-db:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: catalog-mongo\r\n  namespace:\
+            \ acme\r\n  labels:\r\n    app: acmefit\r\n    service: catalog-db\r\nspec:\r\n  ports:\r\n\
+            \    - port: 27017\r\n      name: mongo-catalog\r\n      protocol: TCP\r\n  selector:\r\n\
+            \    app: acmefit\r\n    service: catalog-db\r\n---\r\napiVersion: apps/v1\r\nkind: Deployment\r\
+            \nmetadata:\r\n  name: catalog-mongo\r\n  namespace: acme\r\n  labels:\r\n    app: acmefit\r\
+            \n    service: catalog-db\r\nspec:\r\n  selector:\r\n    matchLabels:\r\n      app: acmefit\
+            \  # has to match .spec.template.metadata.labels\r\n      service: catalog-db\r\n  replicas:\
+            \ 1\r\n  template:\r\n    metadata:\r\n      labels:\r\n        app: acmefit  # has to match\
+            \ .spec.selector.matchLabels\r\n        service: catalog-db\r\n    spec:\r\n      containers:\r\
+            \n        - name: catalog-mongo\r\n          image: mongo:4\r\n          resources:\r\n  \
+            \          {}\r\n          ports:\r\n            - name: catalog-mongo\r\n              containerPort:\
+            \ 27017\r\n              protocol: \"TCP\"\r\n          env:\r\n          - name: MONGO_INITDB_ROOT_USERNAME\r\
+            \n            value: 'mongoadmin'\r\n          - name: MONGO_INITDB_DATABASE\r\n         \
+            \   value: 'acmefit'\r\n          - name: MONGO_INITDB_ROOT_PASSWORD\r\n            valueFrom:\r\
+            \n              secretKeyRef:\r\n                name: catalog-mongo-pass\r\n            \
+            \    key: password\r\n          volumeMounts:\r\n            - mountPath: /data/db\r\n   \
+            \           name: mongodata\r\n            - mountPath: /docker-entrypoint-initdb.d\r\n  \
+            \            name: mongo-initdb\r\n      volumes:\r\n        - name: mongodata\r\n       \
+            \   emptyDir: {}\r\n        - name: mongo-initdb\r\n          configMap:\r\n            name:\
+            \ catalog-initdb-config\r\n#        - name: mongodata\r\n#          persistentVolumeClaim:\r\
+            \n#            claimName: mongodata"
+      cart-redis:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: cart-redis\r\n  namespace: acme\r\
+            \n  labels:\r\n    app: acmefit\r\n    service: cart-redis\r\nspec:\r\n  ports:\r\n    - port:\
+            \ 6379\r\n      name: redis-cart\r\n  selector:\r\n    app: acmefit\r\n    service: cart-redis\r\
+            \n---\r\napiVersion: apps/v1\r\nkind: Deployment\r\nmetadata:\r\n  name: cart-redis\r\n  namespace:\
+            \ acme\r\n  labels:\r\n    app: acmefit\r\n    service: cart-redis\r\n    version: 1.0.0\r\
+            \nspec:\r\n  selector:\r\n    matchLabels:\r\n      app: acmefit  # has to match .spec.template.metadata.labels\r\
+            \n      service: cart-redis\r\n  replicas: 1\r\n  template:\r\n    metadata:\r\n      labels:\r\
+            \n        app: acmefit  # has to match .spec.selector.matchLabels\r\n        service: cart-redis\r\
+            \n    spec:\r\n      containers:\r\n        - name: cart-redis\r\n          image: redis:5.0.3-alpine\r\
+            \n          command:\r\n            - \"redis-server\"\r\n          imagePullPolicy: Always\r\
+            \n          resources:\r\n            requests:\r\n              cpu: \"100m\"\r\n       \
+            \       memory: \"100Mi\"\r\n          ports:\r\n            - name: redis\r\n           \
+            \   containerPort: 6379\r\n              protocol: \"TCP\"\r\n          env:\r\n         \
+            \ - name: REDIS-HOST\r\n            value: 'cart-redis'\r\n          - name: REDIS_PASS\r\n\
+            \            valueFrom:\r\n              secretKeyRef:\r\n                name: redis-pass\r\
+            \n                key: password\r\n          volumeMounts:\r\n            - mountPath: /var/lib/redis\r\
+            \n              name: redis-data\r\n#            - mountPath: /etc/redis\r\n#            \
+            \  name: redis-config\r\n      volumes:\r\n        - name: redis-data\r\n          emptyDir:\
+            \ {}\r\n#        - name: redis-config\r\n#          configMap:\r\n#            name: redis-config\r\
+            \n#            items:\r\n#              - key: redis-config\r\n#                path: redis.conf"
+      catalog:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: catalog\r\n  namespace: acme\r\
+            \n  labels:\r\n    app: acmefit\r\n    service: catalog\r\nspec:\r\n  ports:\r\n    - name:\
+            \ http-catalog\r\n      protocol: TCP\r\n      port: 8082\r\n  selector:\r\n    app: acmefit\r\
+            \n    service: catalog\r\n---\r\napiVersion: apps/v1\r\nkind: Deployment\r\nmetadata:\r\n\
+            \  name: catalog\r\n  namespace: acme\r\n  labels:\r\n    app: acmefit\r\n    service: catalog\r\
+            \nspec:\r\n  selector:\r\n    matchLabels:\r\n      app: acmefit\r\n      service: catalog\r\
+            \n  strategy:\r\n    type: Recreate\r\n  replicas: 1\r\n  template:\r\n    metadata:\r\n \
+            \     labels:\r\n        app: acmefit\r\n        service: catalog\r\n    spec:\r\n      volumes:\r\
+            \n      - name: acmefit-catalog-data\r\n        emptyDir: {}\r\n      containers:\r\n    \
+            \  - image: bjvbc/acmeshop-catalog:1.1.0-beta\r\n        name: catalog\r\n        env:\r\n\
+            \        - name: CATALOG_DB_HOST\r\n          value: 'catalog-mongo'\r\n        - name: CATALOG_DB_PASSWORD\r\
+            \n          valueFrom:\r\n            secretKeyRef:\r\n              name: catalog-mongo-pass\r\
+            \n              key: password\r\n        - name: CATALOG_DB_PORT\r\n          value: '27017'\r\
+            \n        - name: CATALOG_DB_USERNAME\r\n          value: 'mongoadmin'\r\n        - name:\
+            \ CATALOG_PORT\r\n          value: '8082'\r\n        - name: TRACER_HOST\r\n          value:\
+            \ 'jaeger.observability'\r\n        - name: TRACER_PORT\r\n          value: '14268'\r\n  \
+            \      ports:\r\n        - containerPort: 8082\r\n          name: catalog\r\n        volumeMounts:\r\
+            \n        - mountPath: \"/data\"\r\n          name: \"acmefit-catalog-data\"\r\n        resources:\r\
+            \n          requests:\r\n            memory: \"64Mi\"\r\n            cpu: \"100m\"\r\n   \
+            \       limits:\r\n            memory: \"256Mi\"\r\n            cpu: \"500m\""
+      payment:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: payment\r\n  namespace: acme\r\
+            \n  labels:\r\n    app: acmefit\r\n    service: payment\r\nspec:\r\n  ports:\r\n    - name:\
+            \ http-payment\r\n      protocol: TCP\r\n      port: 9000\r\n  selector:\r\n    app: acmefit\r\
+            \n    service: payment\r\n---\r\napiVersion: apps/v1\r\nkind: Deployment\r\nmetadata:\r\n\
+            \  name: payment\r\n  namespace: acme\r\n  labels:\r\n    app: acmefit\r\n    service: payment\r\
+            \nspec:\r\n  selector:\r\n    matchLabels:\r\n      app: acmefit\r\n      service: payment\r\
+            \n  strategy:\r\n    type: Recreate\r\n  replicas: 1\r\n  template:\r\n    metadata:\r\n \
+            \     labels:\r\n        app: acmefit\r\n        service: payment\r\n    spec:\r\n      containers:\r\
+            \n      - image: bjvbc/acmeshop-payment:1.0.0\r\n        name: payment\r\n        env:\r\n\
+            \        - name: PAYMENT_PORT\r\n          value: '9000'\r\n        ports:\r\n        - containerPort:\
+            \ 9000\r\n          name: payment"
+      user-db:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: users-mongo\r\n  namespace: acme\r\
+            \n  labels:\r\n    app: acmefit\r\n    service: users-db\r\nspec:\r\n  ports:\r\n    - port:\
+            \ 27017\r\n      name: mongo-users\r\n      protocol: TCP\r\n  selector:\r\n    app: acmefit\r\
+            \n    service: users-db\r\n---\r\napiVersion: apps/v1\r\nkind: Deployment\r\nmetadata:\r\n\
+            \  name: users-mongo\r\n  namespace: acme\r\n  labels:\r\n    app: acmefit\r\n    service:\
+            \ users-db\r\nspec:\r\n  selector:\r\n    matchLabels:\r\n      app: acmefit  # has to match\
+            \ .spec.template.metadata.labels\r\n      service: users-db\r\n  replicas: 1\r\n  template:\r\
+            \n    metadata:\r\n      labels:\r\n        app: acmefit  # has to match .spec.selector.matchLabels\r\
+            \n        service: users-db\r\n    spec:\r\n      containers:\r\n        - name: users-mongo\r\
+            \n          image: mongo:4\r\n          resources:\r\n            {}\r\n          ports:\r\
+            \n            - name: users-mongo\r\n              containerPort: 27017\r\n              protocol:\
+            \ \"TCP\"\r\n          env:\r\n          - name: MONGO_INITDB_ROOT_USERNAME\r\n          \
+            \  value: 'mongoadmin'\r\n          - name: MONGO_INITDB_DATABASE\r\n            value: 'acmefit'\r\
+            \n          - name: MONGO_INITDB_ROOT_PASSWORD\r\n            valueFrom:\r\n             \
+            \ secretKeyRef:\r\n                name: users-mongo-pass\r\n                key: password\r\
+            \n          volumeMounts:\r\n            - mountPath: /data/db\r\n              name: mongodata\r\
+            \n            - mountPath: /docker-entrypoint-initdb.d\r\n              name: mongo-initdb\r\
+            \n      volumes:\r\n        - name: mongodata\r\n          emptyDir: {}\r\n        - name:\
+            \ mongo-initdb\r\n          configMap:\r\n            name: users-initdb-config\r\n#     \
+            \   - name: mongodata\r\n#          persistentVolumeClaim:\r\n#            claimName: mongodata"
+      order-db:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: order-mongo\r\n  namespace: acme\r\
+            \n  labels:\r\n    app: acmefit\r\n    service: order-db\r\nspec:\r\n  ports:\r\n    - port:\
+            \ 27017\r\n      name: mongo-order\r\n      protocol: TCP\r\n  selector:\r\n    app: acmefit\r\
+            \n    service: order-db\r\n---\r\napiVersion: apps/v1\r\nkind: Deployment\r\nmetadata:\r\n\
+            \  name: order-mongo\r\n  namespace: acme\r\n  labels:\r\n    app: acmefit\r\n    service:\
+            \ order-db\r\nspec:\r\n  selector:\r\n    matchLabels:\r\n      app: acmefit  # has to match\
+            \ .spec.template.metadata.labels\r\n      service: order-db\r\n  replicas: 1\r\n  template:\r\
+            \n    metadata:\r\n      labels:\r\n        app: acmefit  # has to match .spec.selector.matchLabels\r\
+            \n        service: order-db\r\n    spec:\r\n      containers:\r\n        - name: order-mongo\r\
+            \n          image: mongo:4\r\n          resources:\r\n            {}\r\n          ports:\r\
+            \n            - name: order-mongo\r\n              containerPort: 27017\r\n              protocol:\
+            \ \"TCP\"\r\n          env:\r\n          - name: MONGO_INITDB_ROOT_USERNAME\r\n          \
+            \  value: 'mongoadmin'\r\n          - name: MONGO_INITDB_ROOT_PASSWORD\r\n            valueFrom:\r\
+            \n              secretKeyRef:\r\n                name: order-mongo-pass\r\n              \
+            \  key: password\r\n          volumeMounts:\r\n            - mountPath: /data/db\r\n     \
+            \         name: mongodata\r\n      volumes:\r\n        - name: mongodata\r\n          emptyDir:\
+            \ {}\r\n#        - name: mongodata\r\n#          persistentVolumeClaim:\r\n#            claimName:\
+            \ mongodata"
+      user:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: users\r\n  namespace: acme\r\n\
+            \  labels:\r\n    app: acmefit\r\n    service: users\r\nspec:\r\n  ports:\r\n    - name: http-users\r\
+            \n      protocol: TCP\r\n      port: 8081\r\n  selector:\r\n    app: acmefit\r\n    service:\
+            \ users\r\n---\r\napiVersion: apps/v1\r\nkind: Deployment\r\nmetadata:\r\n  name: users\r\n\
+            \  namespace: acme\r\n  labels:\r\n    app: acmefit\r\n    service: users\r\nspec:\r\n  selector:\r\
+            \n    matchLabels:\r\n      app: acmefit\r\n      service: users\r\n  strategy:\r\n    type:\
+            \ Recreate\r\n  replicas: 1\r\n  template:\r\n    metadata:\r\n      labels:\r\n        app:\
+            \ acmefit\r\n        service: users\r\n    spec:\r\n      volumes:\r\n      - name: acmefit-users-data\r\
+            \n        emptyDir: {}\r\n      containers:\r\n      - image: bjvbc/acmeshop-user:1.1.0-beta\r\
+            \n        name: users\r\n        env:\r\n        - name: USERS_DB_HOST\r\n          value:\
+            \ 'users-mongo'\r\n        - name: USERS_DB_PASSWORD\r\n          valueFrom:\r\n         \
+            \   secretKeyRef:\r\n              name: users-mongo-pass\r\n              key: password\r\
+            \n        - name: USERS_DB_PORT\r\n          value: '27017'\r\n        - name: USERS_DB_USERNAME\r\
+            \n          value: 'mongoadmin'\r\n        - name: USERS_PORT\r\n          value: '8081'\r\
+            \n        - name: TRACER_HOST\r\n          value: 'jaeger.observability'\r\n        - name:\
+            \ TRACER_PORT\r\n          value: '14268'\r\n        ports:\r\n        - containerPort: 8081\r\
+            \n          name: users\r\n        volumeMounts:\r\n        - mountPath: \"/data\"\r\n   \
+            \       name: \"acmefit-users-data\"\r\n        resources:\r\n          requests:\r\n    \
+            \        memory: \"64Mi\"\r\n            cpu: \"100m\"\r\n          limits:\r\n          \
+            \  memory: \"256Mi\"\r\n            cpu: \"500m\""
+      cart:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: cart\r\n  namespace: acme\r\n\
+            \  labels:\r\n    app: acmefit\r\n    service: cart\r\nspec:\r\n  ports:\r\n    - name: http-cart\r\
+            \n      protocol: TCP\r\n      port: 5000\r\n  selector:\r\n    app: acmefit\r\n    service:\
+            \ cart\r\n---\r\napiVersion: apps/v1\r\nkind: Deployment\r\nmetadata:\r\n  name: cart\r\n\
+            \  namespace: acme\r\n  labels:\r\n    app: acmefit\r\n    service: cart\r\nspec:\r\n  selector:\r\
+            \n    matchLabels:\r\n      app: acmefit\r\n      service: cart\r\n  strategy:\r\n    type:\
+            \ Recreate\r\n  replicas: 1\r\n  template:\r\n    metadata:\r\n      labels:\r\n        app:\
+            \ acmefit\r\n        service: cart\r\n    spec:\r\n      volumes:\r\n      - name: acmefit-cart-data\r\
+            \n        emptyDir: {}\r\n      containers:\r\n      - image: bjvbc/acmeshop-cart:1.1.0-beta\r\
+            \n        name: cart\r\n        env:\r\n        - name: REDIS_HOST\r\n          value: 'cart-redis'\r\
+            \n        - name: REDIS_PASS\r\n          valueFrom:\r\n            secretKeyRef:\r\n    \
+            \          name: redis-pass\r\n              key: password\r\n        - name: REDIS_PORT\r\
+            \n          value: '6379'\r\n        - name: CART_PORT\r\n          value: '5000'\r\n    \
+            \    - name: TRACER_HOST\r\n          value: 'jaeger.observability'\r\n        - name: TRACER_PORT\r\
+            \n          value: '6831'\r\n        ports:\r\n        - containerPort: 5000\r\n         \
+            \ name: cart\r\n        volumeMounts:\r\n        - mountPath: \"/data\"\r\n          name:\
+            \ \"acmefit-cart-data\"\r\n        resources:\r\n          requests:\r\n            memory:\
+            \ \"64Mi\"\r\n            cpu: \"100m\"\r\n          limits:\r\n            memory: \"256Mi\"\
+            \r\n            cpu: \"500m\""
+      frontend:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: frontend\r\n  namespace: acme\r\
+            \n  labels:\r\n    app: acmefit\r\n    service: frontend\r\nspec:\r\n  ports:\r\n    - name:\
+            \ http-frontend\r\n      protocol: TCP\r\n      port: 3000\r\n  selector:\r\n    app: acmefit\r\
+            \n    service: frontend\r\n  type: LoadBalancer\r\n---\r\napiVersion: apps/v1 # for versions\
+            \ before 1.8.0 use apps/v1beta1\r\nkind: Deployment\r\nmetadata:\r\n  name: frontend\r\n \
+            \ namespace: acme\r\n  labels:\r\n    app: acmefit\r\n    service: frontend\r\nspec:\r\n \
+            \ selector:\r\n    matchLabels:\r\n      app: acmefit\r\n      service: frontend\r\n  strategy:\r\
+            \n    type: Recreate\r\n  replicas: 1\r\n  template:\r\n    metadata:\r\n      labels:\r\n\
+            \        app: acmefit\r\n        service: frontend\r\n    spec:\r\n      containers:\r\n \
+            \     - image: bjvbc/acmeshop-front-end:1.0.0\r\n        name: frontend\r\n        env:\r\n\
+            \        - name: FRONTEND_PORT\r\n          value: '3000'\r\n        - name: USERS_HOST\r\n\
+            \          value: 'users'\r\n        - name: CATALOG_HOST\r\n          value: 'catalog'\r\n\
+            \        - name: ORDER_HOST\r\n          value: 'order'\r\n        - name: CART_HOST\r\n \
+            \         value: 'cart'\r\n        - name: TRACER_HOST\r\n          value: 'jaeger.observability'\r\
+            \n        - name: USERS_PORT\r\n          value: '8081'\r\n        - name: CATALOG_PORT\r\n\
+            \          value: '8082'\r\n        - name: CART_PORT\r\n          value: '5000'\r\n     \
+            \   - name: ORDER_PORT\r\n          value: '6000'\r\n        - name: TRACER_PORT\r\n     \
+            \     value: '14268'\r\n        ports:\r\n        - containerPort: 3000\r\n          name:\
+            \ frontend"
+      order:
+        type: K8S
+        ignoreFailure: true
+        endpoints:
+          kubernetesServer: acme
+        input:
+          action: DELETE
+          timeout: 5
+          filePath: ''
+          scmConstants: {
+            }
+          yaml: "apiVersion: v1\r\nkind: Service\r\nmetadata:\r\n  name: order\r\n  namespace: acme\r\n\
+            \  labels:\r\n    app: acmefit\r\n    service: order\r\nspec:\r\n  ports:\r\n    - name: http-order\r\
+            \n      protocol: TCP\r\n      port: 6000\r\n  selector:\r\n    app: acmefit\r\n    service:\
+            \ order\r\n---\r\napiVersion: apps/v1 # for versions before 1.8.0 use apps/v1beta1\r\nkind:\
+            \ Deployment\r\nmetadata:\r\n  name: order\r\n  namespace: acme\r\n  labels:\r\n    app: acmefit\r\
+            \n    service: order\r\nspec:\r\n  selector:\r\n    matchLabels:\r\n      app: acmefit\r\n\
+            \      service: order\r\n  strategy:\r\n    type: Recreate\r\n  replicas: 1\r\n  template:\r\
+            \n    metadata:\r\n      labels:\r\n        app: acmefit\r\n        service: order\r\n   \
+            \ spec:\r\n      volumes:\r\n      - name: acmefit-order-data\r\n        emptyDir: {}\r\n\
+            \      containers:\r\n      - image: bjvbc/acmeshop-order:1.0.1\r\n        name: order\r\n\
+            \        env:\r\n        - name: ORDER_DB_HOST\r\n          value: 'order-mongo'\r\n     \
+            \   - name: ORDER_DB_PASSWORD\r\n          valueFrom:\r\n            secretKeyRef:\r\n   \
+            \           name: order-mongo-pass\r\n              key: password\r\n        - name: ORDER_DB_PORT\r\
+            \n          value: '27017'\r\n        - name: ORDER_DB_USERNAME\r\n          value: 'mongoadmin'\r\
+            \n        - name: ORDER_PORT\r\n          value: '6000'\r\n        - name: PAYMENT_PORT\r\n\
+            \          value: '9000'\r\n        - name: PAYMENT_HOST\r\n          value: 'payment'\r\n\
+            \        ports:\r\n        - containerPort: 6000\r\n          name: order\r\n        volumeMounts:\r\
+            \n        - mountPath: \"/data\"\r\n          name: \"acmefit-order-data\"\r\n        resources:\r\
+            \n          requests:\r\n            memory: \"64Mi\"\r\n            cpu: \"100m\"\r\n   \
+            \       limits:\r\n            memory: \"256Mi\"\r\n            cpu: \"500m\""
